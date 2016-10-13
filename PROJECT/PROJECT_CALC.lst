@@ -1,0 +1,495 @@
+
+as12, an absolute assembler for Motorola MCU's, version 1.2h
+
+                        ; WRITTEN BY ANDY BIETRY AND IAN MCCANN.
+                        ; "MUX" CODE PROVIDED BY GEORGE FEZEKAS.
+                        ; THIS PROGRAM USES ANALOG TO DIGITAL CONVERSION TO PROCESS SIGNALS FROM
+                        ; AN ULTRA SONIC SENSOR TO CALCULATE SPEED. IT ALSO DISPLAYS THE SPEED
+                        ; ON 4 7-SEGEMENT LED DISPLAYS IN MILES PER HOUR.
+                        
+                        #include Reg9s12.h
+                        *
+                        *
+                        *  HC12 i/o register locations (9s12dp256)
+                        *
+                        *
+0000                    porta:          equ 0   ;port a = address lines a8 - a15
+0001                    portb:          equ 1   ;port b = address lines a0 - a7
+0002                    ddra:           equ 2   ;port a direction register
+0003                    ddrb:           equ 3   ;port a direction register
+                        
+0008                    porte:          equ 8   ;port e = mode,irqandcontrolsignals
+0009                    ddre:           equ 9   ;port e direction register
+000a                    pear:           equ $a  ;port e assignments
+000b                    mode:           equ $b  ;mode register
+000c                    pucr:           equ $c  ;port pull-up control register
+000d                    rdriv:          equ $d  ;port reduced drive control register
+000e                    ebictl:		equ $e  ;e stretch control
+                        
+0010                    initrm:         equ $10 ;ram location register
+0011                    initrg:         equ $11 ;register location register
+0012                    initee:         equ $12 ;eeprom location register
+0013                    misc:           equ $13 ;miscellaneous mapping control
+0014                    mtst0:          equ $14 ; reserved
+0015                    itcr:           equ $15 ;interrupt test control register
+0016                    itest:          equ $16 ;interrupt test register
+0017                    mtst1:          equ $17 ; reserved
+                        
+001a                    partidh:	equ $1a ;part id high
+001b                    partidl:	equ $1b ;part id low
+001c                    memsiz0:	equ $1c ;memory size
+001d                    memsiz1:	equ $1d ;memory size
+001e                    intcr:          equ $1e ;interrupt control register
+001f                    hprio:          equ $1f ;high priority reg
+                        
+0028                    bkpct0:         equ $28 ;break control register
+0029                    bkpct1:         equ $29 ;break control register
+002a                    bkp0x:          equ $2a ; break 0 index register
+002b                    bkp0h:          equ $2b ; break 0 pointer high
+002c                    brp0l:          equ $2c ; break 0 pointer low
+002d                    bkp1x:          equ $2d ; break 1 index register
+002e                    bkp1h:          equ $2e ; break 1 pointer high
+002f                    brp1l:          equ $2f ; break 1 pointer low
+0030                    ppage:		equ $30 ;program page register
+                        
+0032                    portk:		equ $32 ;port k data
+0033                    ddrk:		equ $33 ;port k direction
+0034                    synr:           equ $34 ; synthesizer / multiplier register
+0035                    refdv:          equ $35 ; reference divider register
+0036                    ctflg:          equ $36 ; reserved
+0037                    crgflg:         equ $37 ; pll flags register
+0038                    crgint:         equ $38 ; pll interrupt register
+0039                    clksel:         equ $39 ; clock select register
+003a                    pllctl:         equ $3a ; pll control register
+003b                    rtictl:         equ $3b ;real time interrupt control
+003c                    copctl:         equ $3c ;watchdog control
+003d                    forbyp:         equ $3d ;
+003e                    ctctl:          equ $3e ;
+003f                    armcop:         equ $3f ;cop reset register
+                        
+0040                    tios:           equ $40 ;timer input/output select
+0041                    cforc:          equ $41 ;timer compare force
+0042                    oc7m:           equ $42 ;timer output compare 7 mask
+0043                    oc7d:           equ $43 ;timer output compare 7 data
+0044                    tcnt:           equ $44 ;timer counter register hi
+                        *tcnt:          equ $45 ;timer counter register lo
+0046                    tscr:           equ $46 ;timer system control register
+0047                    ttov:           equ $47 ;reserved
+0048                    tctl1:          equ $48 ;timer control register 1
+0049                    tctl2:          equ $49 ;timer control register 2
+004a                    tctl3:          equ $4a ;timer control register 3
+004b                    tctl4:          equ $4b ;timer control register 4
+004c                    tmsk1:          equ $4c ;timer interrupt mask 1
+004d                    tmsk2:          equ $4d ;timer interrupt mask 2
+004e                    tflg1:          equ $4e ;timer flags 1
+004f                    tflg2:          equ $4f ;timer flags 2
+0050                    tc0:            equ $50 ;timer capture/compare register 0
+0052                    tc1:            equ $52 ;timer capture/compare register 1
+0054                    tc2:            equ $54 ;timer capture/compare register 2
+0056                    tc3:            equ $56 ;timer capture/compare register 3
+0058                    tc4:            equ $58 ;timer capture/compare register 4
+005a                    tc5:            equ $5a ;timer capture/compare register 5
+005c                    tc6:            equ $5c ;timer capture/compare register 6
+005e                    tc7:            equ $5e ;timer capture/compare register 7
+0060                    pactl:          equ $60 ;pulse accumulator controls
+0061                    paflg:          equ $61 ;pulse accumulator flags
+0062                    pacn3:          equ $62 ;pulse accumulator counter 3
+0063                    pacn2:          equ $63 ;pulse accumulator counter 2
+0064                    pacn1:          equ $64 ;pulse accumulator counter 1
+0065                    pacn0:          equ $65 ;pulse accumulator counter 0
+0066                    mcctl:          equ $66 ;modulus down conunter control
+0067                    mcflg:          equ $67 ;down counter flags
+0068                    icpar:          equ $68 ;input pulse accumulator control
+0069                    dlyct:          equ $69 ;delay count to down counter
+006a                    icovw:          equ $6a ;input control overwrite register
+006b                    icsys:          equ $6b ;input control system control
+                        
+006d                    timtst:         equ $6d ;timer test register
+                        
+0070                    pbctl:          equ $70 ; pulse accumulator b control
+0071                    pbflg:          equ $71 ; pulse accumulator b flags
+0072                    pa3h:           equ $72 ; pulse accumulator holding register 3
+0073                    pa2h:           equ $73 ; pulse accumulator holding register 2
+0074                    pa1h:           equ $74 ; pulse accumulator holding register 1
+0075                    pa0h:           equ $75 ; pulse accumulator holding register 0
+0076                    mccnt:          equ $76 ; modulus down counter register
+                        *mccntl:        equ $77 ; low byte
+0078                    tcoh:           equ $78 ; capture 0 holding register
+007a                    tc1h:           equ $7a ; capture 1 holding register
+007c                    tc2h:           equ $7c ; capture 2 holding register
+007e                    tc3h:           equ $7e ; capture 3 holding register
+                        
+0080                    atd0ctl0:       equ $80 ;adc control 0 (reserved)
+0081                    atd0ctl1:       equ $81 ;adc control 1 (reserved)
+0082                    atd0ctl2:       equ $82 ;adc control 2
+0083                    atd0ctl3:       equ $83 ;adc control 3
+0084                    atd0ctl4:       equ $84 ;adc control 4
+0085                    atd0ctl5:       equ $85 ;adc control 5
+0086                    atd0stat:       equ $86 ;adc status register hi
+                        *atd0stat       equ $87 ;adc status register lo
+0088                    atd0test:       equ $88 ;adc test (reserved)
+                        *atd0test       equ $89 ;
+                        
+008d                    atd0dien:	equ $8d ;
+                        
+008f                    portad:         equ $8f ;port adc = input only
+0090                    adr00h:         equ $90 ;adc result 0 register
+0092                    adr01h:         equ $92 ;adc result 1 register
+0094                    adr02h:         equ $94 ;adc result 2 register
+0096                    adr03h:         equ $96 ;adc result 3 register
+0098                    adr04h:         equ $98 ;adc result 4 register
+009a                    adr05h:         equ $9a ;adc result 5 register
+009c                    adr06h:         equ $9c ;adc result 6 register
+009e                    adr07h:         equ $9e ;adc result 7 register
+                        
+00a0                    pwme:		equ $a0 ;pwm enable
+00a1                    pwmpol:         equ $a1 ;pwm polarity
+00a2                    pwmclk:         equ $a2 ;pwm clock select register
+00a3                    pwmprclk:       equ $a3 ;pwm prescale clock select register
+00a4                    pwmcae:         equ $a4 ;pwm center align select register
+00a5                    pwmctl:         equ $a5 ;pwm control register
+00a6                    pwmtst:         equ $a6 ;reserved
+00a7                    pwmprsc:        equ $a7 ;reserved
+00a8                    pwmscla:        equ $a8 ;pwm scale a
+00a9                    pwmsclb:        equ $a9 ;pwm scale b
+00aa                    pwmscnta:       equ $aa ;reserved
+00ab                    pwmscntb:       equ $ab ;reserved
+00ac                    pwmcnt0:        equ $ac ;pwm channel 0 counter
+00ad                    pwmcnt1:        equ $ad ;pwm channel 1 counter
+00ae                    pwmcnt2:        equ $ae ;pwm channel 2 counter
+00af                    pwmcnt3:        equ $af ;pwm channel 3 counter
+00b0                    pwmcnt4:        equ $b0 ;pwm channel 4 counter
+00b1                    pwmcnt5:        equ $b1 ;pwm channel 5 counter
+00b2                    pwmcnt6:        equ $b2 ;pwm channel 6 counter
+00b3                    pwmcnt7:        equ $b3 ;pwm channel 7 counter
+00b4                    pwmper0:        equ $b4 ;pwm channel 0 period
+00b5                    pwmper1:        equ $b5 ;pwm channel 1 period
+00b6                    pwmper2:        equ $b6 ;pwm channel 2 period
+00b7                    pwmper3:        equ $b7 ;pwm channel 3 period
+00b8                    pwmper4:        equ $b8 ;pwm channel 4 period
+00b9                    pwmper5:        equ $b9 ;pwm channel 5 period
+00ba                    pwmper6:        equ $ba ;pwm channel 6 period
+00bb                    pwmper7:        equ $bb ;pwm channel 7 period
+00bc                    pwmdty0:        equ $bc ;pwm channel 0 duty cycle
+00bd                    pwmdty1:        equ $bd ;pwm channel 1 duty cycle
+00be                    pwmdty2:        equ $be ;pwm channel 2 duty cycle
+00bf                    pwmdty3:        equ $bf ;pwm channel 3 duty cycle
+00c0                    pwmdty4:        equ $c0 ;pwm channel 0 duty cycle
+00c1                    pwmdty5:        equ $c1 ;pwm channel 1 duty cycle
+00c2                    pwmdty6:        equ $c2 ;pwm channel 2 duty cycle
+00c3                    pwmdty7:        equ $c3 ;pwm channel 3 duty cycle
+00c4                    pwmsdn:         equ $c4 ;pwm shutdown register
+                        
+00c8                    sc0bdh:         equ $c8 ;sci 0 baud reg hi byte
+00c9                    sc0bdl:         equ $c9 ;sci 0 baud reg lo byte
+00ca                    sc0cr1:         equ $ca ;sci 0 control1 reg
+00cb                    sc0cr2:         equ $cb ;sci 0 control2 reg
+00cc                    sc0sr1:         equ $cc ;sci 0 status reg 1
+00cd                    sc0sr2:         equ $cd ;sci 0 status reg 2
+00ce                    sc0drh:         equ $ce ;sci 0 data reg hi
+00cf                    sc0drl:         equ $cf ;sci 0 data reg lo
+00d0                    sc1bdh:         equ $d0 ;sci 1 baud reg hi byte
+00d1                    sc1bdl:         equ $d1 ;sci 1 baud reg lo byte
+00d2                    sc1cr1:         equ $d2 ;sci 1 control1 reg
+00d3                    sc1cr2:         equ $d3 ;sci 1 control2 reg
+00d4                    sc1sr1:         equ $d4 ;sci 1 status reg 1
+00d5                    sc1sr2:         equ $d5 ;sci 1 status reg 2
+00d6                    sc1drh:         equ $d6 ;sci 1 data reg hi
+00d7                    sc1drl:         equ $d7 ;sci 1 data reg lo
+00d8                    spi0cr1:        equ $d8 ;spi 0 control1 reg
+00d9                    spi0cr2:        equ $d9 ;spi 0 control2 reg
+00da                    spi0br:         equ $da ;spi 0 baud reg
+00db                    spi0sr:         equ $db ;spi 0 status reg hi
+                        
+00dd                    sp0dr:          equ $dd ;spi 0 data reg
+                        
+00e0                    ibad:		equ $e0 ;i2c bus address register
+00e1                    ibfd:		equ $e1 ;i2c bus frequency divider
+00e2                    ibcr:		equ $e2 ;i2c bus control register
+00e3                    ibsr:		equ $e3 ;i2c bus status register
+00e4                    ibdr:		equ $e4 ;i2c bus message data register
+                        
+00e8                    dlcbcr1:	equ $e8 ;bdlc control regsiter 1
+00e9                    dlcbsvr:	equ $e9 ;bdlc state vector register
+00ea                    dlcbcr2:	equ $ea ;bdlc control register 2
+00eb                    dlcbdr:		equ $eb ;bdlc data register
+00ec                    dlcbard:	equ $ec ;bdlc analog delay register
+00ed                    dlcbrsr:	equ $ed ;bdlc rate select register
+00ee                    dlcscr:		equ $ee ;bdlc control register
+00ef                    dlcbstat:	equ $ef ;bdlc status register
+00f0                    spi1cr1:        equ $f0 ;spi 1 control1 reg
+00f1                    spi1cr2:        equ $f1 ;spi 1 control2 reg
+00f2                    spi1br:         equ $f2 ;spi 1 baud reg
+00f3                    spi1sr:         equ $f3 ;spi 1 status reg hi
+                        
+00f5                    sp1dr:          equ $f5 ;spi 1 data reg
+                        
+00f8                    spi2cr1:        equ $f8 ;spi 2 control1 reg
+00f9                    spi2cr2:        equ $f9 ;spi 2 control2 reg
+00fa                    spi2br:         equ $fa ;spi 2 baud reg
+00fb                    spi2sr:         equ $fb ;spi 2 status reg hi
+                        
+00fd                    sp2dr:          equ $fd ;spi 2 data reg
+                        
+0100                    fclkdiv:	equ $100 ;flash clock divider
+0101                    fsec:		equ $101 ;flash security register
+                        
+0103                    fcnfg:		equ $103 ;flash configuration register
+0104                    fprot:		equ $104 ;flash protection register
+0105                    fstat:		equ $105 ;flash status register
+0106                    fcmd:		equ $106 ;flash command register
+                        
+0110                    eclkdiv:	equ $110 ;eeprom clock divider
+                        
+0113                    ecnfg:		equ $113 ;eeprom configuration register
+0114                    eprot:		equ $114 ;eeprom protection register
+0115                    estat:		equ $115 ;eeprom status register
+0116                    ecmd:		equ $116 ;eeprom command register
+                        
+0120                    atd1ctl0:       equ $120 ;adc1 control 0 (reserved)
+0121                    atd1ctl1:       equ $121 ;adc1 control 1 (reserved)
+0122                    atd1ctl2:       equ $122 ;adc1 control 2
+0123                    atd1ctl3:       equ $123 ;adc1 control 3
+0124                    atd1ctl4:       equ $124 ;adc1 control 4
+0125                    atd1ctl5:       equ $125 ;adc1 control 5
+0126                    atd1stat:       equ $126 ;adc1 status register hi
+                        *atd1stat       equ $127 ;adc1 status register lo
+0128                    atd1test:       equ $128 ;adc1 test (reserved)
+                        *atd1test       equ $129 ;
+                        
+012d                    atddien:	equ $12d ;adc1 input enable register
+                        
+012f                    portad1:        equ $12f ;port adc1 = input only
+0130                    adr10h:         equ $130 ;adc1 result 0 register
+0132                    adr11h:         equ $132 ;adc1 result 1 register
+0134                    adr12h:         equ $134 ;adc1 result 2 register
+0136                    adr13h:         equ $136 ;adc1 result 3 register
+0138                    adr14h:         equ $138 ;adc1 result 4 register
+013a                    adr15h:         equ $13a ;adc1 result 5 register
+013c                    adr16h:         equ $13c ;adc1 result 6 register
+013e                    adr17h:         equ $13e ;adc1 result 7 register
+                        
+0240                    ptt:		equ $240 ;portt data register
+0241                    ptit:		equ $241 ;portt input register
+0242                    ddrt:		equ $242 ;portt direction register
+0243                    rdrt:		equ $243 ;portt reduced drive register
+0244                    pert:		equ $244 ;portt pull device enable
+0245                    ppst:		equ $245 ;portt pull polarity select
+                        
+0248                    pts:		equ $248 ;ports data register
+0249                    ptis:		equ $249 ;ports input register
+024a                    ddrs:		equ $24a ;ports direction register
+024b                    rdrs:		equ $24b ;ports reduced drive register
+024c                    pers:		equ $24c ;ports pull device enable
+024d                    ppss:		equ $24d ;ports pull polarity select
+024e                    woms:		equ $24e ;ports wired or mode register
+                        
+0250                    ptm:		equ $250 ;portm data register
+0251                    ptim:		equ $251 ;portm input register
+0252                    ddrm:		equ $252 ;portm direction register
+0253                    rdrm:		equ $253 ;portm reduced drive register
+0254                    perm:		equ $254 ;portm pull device enable
+0255                    ppsm:		equ $255 ;portm pull polarity select
+0256                    womm:		equ $256 ;portm wired or mode register
+0257                    modrr:		equ $257 ;portm module routing register
+0258                    ptp:		equ $258 ;portp data register
+0259                    ptip:		equ $259 ;portp input register
+025a                    ddrp:		equ $25a ;portp direction register
+025b                    rdrp:		equ $25b ;portp reduced drive register
+025c                    perp:		equ $25c ;portp pull device enable
+025d                    ppsp:		equ $25d ;portp pull polarity select
+025e                    piep:		equ $25e ;portp interrupt enable register
+025f                    pifp:		equ $25f ;portp interrupt flag register
+0260                    pth:		equ $260 ;porth data register
+0261                    ptih:		equ $261 ;porth input register
+0262                    ddrh:		equ $262 ;porth direction register
+0263                    rdrh:		equ $263 ;porth reduced drive register
+0264                    perh:		equ $264 ;porth pull device enable
+0265                    ppsh:		equ $265 ;porth pull polarity select
+0266                    pieh:		equ $266 ;porth interrupt enable register
+0267                    pifh:		equ $267 ;porth interrupt flag register
+0268                    ptj:		equ $268 ;portp data register
+0269                    ptij:		equ $269 ;portp input register
+026a                    ddrj:		equ $26a ;portp direction register
+026b                    rdrj:		equ $26b ;portp reduced drive register
+026c                    perj:		equ $26c ;portp pull device enable
+026d                    ppsj:		equ $26d ;portp pull polarity select
+026e                    piej:		equ $26e ;portp interrupt enable register
+026f                    pifj:		equ $26f ;portp interrupt flag register
+                        
+                        * end registers
+                        #endinclude
+
+                        
+eea4                    setvec        equ        $EEA4           ;Debug12 Set Vector() Sub address location
+ee84                    getchar       equ        $EE84           ;Debug12 getchar() sub address location
+ee86                    putchar       equ        $EE86           ;Debug12 putchar() sub address location
+0008                    DIG0        equ        8                 ; PP3
+0004                    DIG1        equ        4                 ; PP2
+0002                    DIG2        equ        2                 ; PP1
+0001                    DIG3        equ        1                 ; P0
+1000                            org     $1000
+1000                    start
+1000 86 ff                      ldaa        #$FF
+1002 7a 02 58                   staa        ptp                  ; turn off 7-segment display
+1005 5a 03                      staa        ddrb                 ; program portb for output (LED Segments)
+1007 7a 02 5a                   staa        ddrp                 ; program portp for output (LED Display Enable Lines)
+                        
+100a ce 10 39                   ldx        #RTISR                ;obtain the address of our ISR
+100d 34                         pshx                             ;save it on the stack
+100e cc 00 38                   ldd        #56                   ;obtain Debug12 RAM Table address for RTISR
+1011 fe ee a4                   ldx        setvec                ;call Debug12 sub to install ISR in RAM Table
+1014 15 00                      jsr        0,x
+                        
+1016 18 0b 37 00 3b             movb        #$37,rtictl          ;program RTInterrupt to occur every
+                                                                 ; 4MHz/1024 = 3906.25/2^2/8 = 122.0703125 Hz
+                        
+101b 18 0b 7a 11 20             movb        #122,count           ;init counter for 122 * 8.12 ms
+1020 4c 38 80                   bset        crgint,$80           ;enable Real Time Clock and RTInterrupts
+                        
+1023 18 03 00 00 11 21          movw        #$0000,number        ;initialize counter and number to be displayed
+1029 18 04 11 21 11 23          movw        number,mux_dig       ;copy number to the to the multiplexed display storage
+102f 18 0b 03 11 25             movb        #$03,mux_sel         ;initialize mux selector (will be cycled from 3-0, then reset to 3)
+                        
+1034 10 ef                      cli                              ;clear mask bit in CCR to enable ALL interrupts
+                                
+1036 a7                 loop    nop                              ;MAIN LOOP
+1037 20 fd                      bra     loop
+                        
+1039                    RTISR
+1039 34                         pshx
+103a 3b                         pshd
+103b 35                         pshy
+103c 4c 37 80                   bset        crgflg,$80           ;clear interrupt flag
+103f 73 11 20                   dec         count                ;wait for 122 intterrupts before doing anything
+1042 26 42                      bne         mux
+                        
+1044 a7                 SENSOR  NOP
+1045 86 80                      LDAA        #$80                 ;Set the ADPU bit to 1 (turn on the A to D)
+1047 5a 82                      STAA        atd0ctl2             ;Store in this register
+                        
+1049 86 50                      LDAA        #240/3               ;10 microsecond delay
+104b 04 30 fd           wait    DBNE        A wait
+104e 86 20                      LDAA        #$20                 ;Set S4C to 1 (Sets A to D to do a 4 conversions)
+1050 5a 83                      STAA        atd0ctl3             ;Store in this reigster
+1052 18 0b 82 00 85             MOVB        #$82 atd0ctl5        ;start conversion and sample PAD02
+1057 4f 86 80 fc        wait2   BRCLR        atd0stat #$80 wait2 ;wait for SCF=1
+                        ;*************************************************************;
+105b b6 11 1c                   LDAA        CFLG                 ;CALCULATIONS
+105e 81 01                      CMPA        #1
+1060 26 0d                      BNE         $106F                ;BRANCHES TO THE START OF THE STORING PROCESS,
+1062 fc 11 17                   LDD         NUM1                 ;LOOK AT LINE #74
+1065 b3 11 19                   SUBD        NUM2
+1068 18 2d 00 94                LBLT        NEGATE               ;NOTE: THIS CALCULATES THE SPEED IN INCHES PER SECOND
+106c 7c 11 1e                   STD         SPEED
+                                
+                                
+                        
+                        ;*************************************************************;
+106f b6 11 1b                   LDAA        SFLG
+1072 81 01                      CMPA        #1
+1074 18 27 00 8f                LBEQ        STORE2
+1078 dc 90                      LDD         $90
+107a 7c 11 17                   STD         NUM1                 ;STORE DISTANCE TO NUM1
+107d 1c 11 1b 01                BSET        SFLG,1
+                        ;*************************************************************;
+                        
+1081 18 0b 7a 11 20             MOVB        #122,count           ;reset interrupt counter
+                                
+1086                    mux                                      ;the following code displays the number stored in the interger "number"
+                                                                 ;by treating it as 4 discrete 4-bit nybbles multiplexed between the
+                                                                 ;4 LED display digits at a rate of 122 per second.
+                        
+1086 f6 11 25                   ldab        mux_sel              ;get current mux address (0-3)
+1089 b6 11 24                   ldaa        mux_dig+1            ;get low order byte
+108c 84 0f                      anda        #$0F                 ;interested in only the low order nybble for display
+108e ce 11 26                   ldx        #seg_ptrn             ;lookup the segment pattern for the nybble
+1091 a6 e4                      ldaa        a,x
+1093 5a 01                      staa        portb                ;update the correct LED digit for display
+1095 cd 11 36                   ldy        #mltplx               ;index to jump table
+1098 58                         aslb                             ;multiply index by 2 for word address offset
+1099 ed ed                      ldy        b,y                   ;pickup mux address
+109b 15 40                      jsr        0,y                   ;jump to and enable the correct display digit
+                        
+109d fc 11 23                   ldd        mux_dig               ;divide the integer for display by 16 so that
+10a0 ce 00 10                   ldx        #$10                  ;the next nybble for display is in the low order 4 bits
+10a3 18 10                      idiv
+10a5 7e 11 23                   stx        mux_dig
+10a8 73 11 25                   dec        mux_sel               ;go to the next LED digit
+10ab 2a 0b                      bpl        quit
+10ad 18 0b 03 11 25             movb        #$03,mux_sel         ;reset the mux selector
+10b2 18 04 11 21 11 23          movw        number,mux_dig       ;reset the integer display digit
+10b8                    quit
+10b8 31                         puly
+10b9 30                         pulx
+10ba 3a                         puld
+10bb 0b                         rti
+                        
+                        
+                        
+10bc                    digit0:
+10bc 1d 02 58 08                bclr        ptp,DIG0             ; turn on LED Display digit 0
+10c0 1c 02 58 04                bset        ptp,DIG1             ; turn off all other digits
+10c4 1c 02 58 02                bset        ptp,DIG2
+10c8 1c 02 58 01                bset        ptp,DIG3
+10cc 3d                         rts
+10cd                    digit1
+10cd 1c 02 58 08                bset        ptp,DIG0
+10d1 1d 02 58 04                bclr        ptp,DIG1             ; turn on LED DISPLAY digit 1
+10d5 1c 02 58 02                bset        ptp,DIG2             ; turn off all other digits
+10d9 1c 02 58 01                bset        ptp,DIG3
+10dd 3d                         rts
+10de                    digit2
+10de 1c 02 58 08                bset        ptp,DIG0
+10e2 1c 02 58 04                bset        ptp,DIG1
+10e6 1d 02 58 02                bclr        ptp,DIG2             ; turn on LED Display digit 2
+10ea 1c 02 58 01                bset        ptp,DIG3             ; turn off all other digits
+10ee 3d                         rts
+10ef                    digit3
+10ef 1c 02 58 08                bset        ptp,DIG0
+10f3 1c 02 58 04                bset        ptp,DIG1
+10f7 1c 02 58 02                bset        ptp,DIG2
+10fb 1d 02 58 01                bclr        ptp,DIG3             ; turn on LED Display digit 3
+10ff 3d                         rts
+                        ;****************************************;
+1100                    NEGATE                                   ;NEGATES SPEED IF IT'S NEGATIVE
+1100 7c 11 1e                   STD         SPEED
+1103 70 11 1e                   NEG         SPEED
+1106 3d                         RTS
+                        
+                        
+                        ;****************************************;
+1107                    STORE2                                   ;STORES THE SECOND DISTANCE INTO NUM2 AND RETURNS TO THE MAIN LOOP
+1107 dc 90                      LDD         $90
+1109 7c 11 19                   STD         NUM2
+110c 1d 11 1b 01                BCLR        SFLG,1
+1110 1c 11 1c 01                BSET        CFLG,1
+1114 06 10 6f                   JMP         $106F
+                        ;****************************************;
+1117                    NUM1    RMB          2                   ;STORAGE LOCATION FOR FIRST READING
+1119                    NUM2    RMB          2                   ;STORAGE LOCATION FOR SECOND READING
+111b 00                 SFLG    DB           0                   ;STORAGE LOCATION FLAG
+111c 00                 CFLG    DB           0                   ;CALCULATIONS FLAG
+111d 00                 NFLG    DB           0                   ;NEGATIVE RESULT FLAG
+111e                    SPEED   RMB          2                   ;RESULT OF SPEED CALCULATION
+                        ;****************************************;
+                        
+1120                    count        rmb        1                ; interrupt counter
+1121                    number        rmb        2               ; 16 bit integer cout
+1123                    mux_dig        rmb        2              ; current mux digit being displayed
+1125                    mux_sel        rmb        1              ; current mux/display digit (0-3)
+1126                    seg_ptrn                                 ; bit patterns to illuminate correct LED segments
+1126 3f 06 5b 4f 66 6d          fcb        $3f,$06,$5b,$4f,$66,$6d,$7d,$07                ; 0-7
+     7d 07
+                        ;                0,  1,  2,  3,  4,  5,  6,  7
+112e 7f 6f 77 7c 39 5e          fcb        $7f,$6f,$77,$7c,$39,$5e,$79,$71                ; 8-$0f
+     79 71
+                        ;                8,  9,  A,  b,  C,  d,  E,  F
+1136                    mltplx                                   ;jump addresses to enable 1 of 4 LED display digits
+1136 10 ef 10 de 10 cd          dw        digit3,digit2,digit1,digit0
+     10 bc
+                                end
+
+Executed: Tue Dec 06 17:14:35 2011
+Total cycles: 338, Total bytes: 306
+Total errors: 0, Total warnings: 0
